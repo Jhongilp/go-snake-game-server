@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -60,7 +61,32 @@ func (m *Manager) RemoveClient(c *Client) {
 }
 
 func SendMessage(event Event, c *Client) error {
-	fmt.Printf("Sending message: %+v\n", event.Payload)
+	var messageEvent SendMessageEvent
+	if err := json.Unmarshal(event.Payload, &messageEvent); err != nil {
+		return fmt.Errorf("bad payload in request: %v", err)
+	}
+
+	log.Printf("Received message from client: %s\n", messageEvent.Message)
+
+	// Create response to send back to client
+	response := SendMessageEvent{
+		Message: "Server received: " + messageEvent.Message,
+		From:    "server",
+	}
+
+	responsePayload, err := json.Marshal(response)
+	if err != nil {
+		return fmt.Errorf("failed to marshal response: %v", err)
+	}
+
+	responseEvent := Event{
+		Type:    EventSendMessage,
+		Payload: responsePayload,
+	}
+
+	// Send to client through egress channel
+	c.egress <- responseEvent
+
 	return nil
 }
 
