@@ -16,6 +16,7 @@ var (
 type Client struct {
 	connection *websocket.Conn
 	manager    *Manager
+	playerId   string
 
 	// egress is used to avoid concurrent writes on the web socket connection
 	egress chan Event
@@ -48,7 +49,6 @@ func (c *Client) readMessages() {
 
 	for {
 		_, payload, err := c.connection.ReadMessage()
-		log.Println("raw payload: ", payload)
 
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -64,7 +64,7 @@ func (c *Client) readMessages() {
 			break
 		}
 
-		log.Println("Event received: ", request)
+		log.Printf("Event received: %+v", request)
 
 		if err := c.manager.routeEvent(request, c); err != nil {
 			log.Println("Error handling message: ", err)

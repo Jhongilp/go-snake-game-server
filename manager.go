@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -66,7 +67,7 @@ func SendMessage(event Event, c *Client) error {
 		return fmt.Errorf("bad payload in request: %v", err)
 	}
 
-	log.Printf("Received message from client: %s\n", messageEvent.Message)
+	log.Printf("Received message from client: %+v\n", messageEvent)
 
 	// Create response to send back to client
 	response := SendMessageEvent{
@@ -111,10 +112,29 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate unique player ID
+	playerId := uuid.New().String()
+
 	client := NewClient(conn, m)
+	client.playerId = playerId
 	m.AddClient(client)
 
-	// start client processes
+	// Start client processes FIRST
 	go client.readMessages()
 	go client.writeMessages()
+
+	// Send player ID to client after goroutines are running
+	playerIdPayload, err := json.Marshal(PlayerIdEvent{Id: playerId})
+	if err != nil {
+		log.Printf("error marshalling player ID: %v", err)
+		return
+	}
+
+	playerIdEvent := Event{
+		Type:    EventPlayerId,
+		Payload: playerIdPayload,
+	}
+
+	log.Printf("Assigned player ID: %s", playerId)
+	client.egress <- playerIdEvent
 }
