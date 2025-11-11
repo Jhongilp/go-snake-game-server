@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	gamestate "github/jhongilp/snake-game/game-state"
 	"log"
 	"net/http"
 	"sync"
@@ -137,4 +138,22 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Assigned player ID: %s", playerId)
 	client.egress <- playerIdEvent
+
+	// create Player
+	player := gamestate.NewPlayer(playerId, 100, 100, "red", "Player 1")
+
+	// game state
+	gameState := gamestate.NewGameState()
+	gameState.AddPlayer(*player)
+
+	gameStatePayload, err := json.Marshal(gameState)
+	if err != nil {
+		log.Printf("error marshalling game state: %v", err)
+		return
+	}
+
+	client.egress <- Event{
+		Type:    EventGameState,
+		Payload: gameStatePayload,
+	}
 }
