@@ -5,22 +5,32 @@ type GameState struct {
 }
 
 type Player struct {
-	Id        string  `json:"id"`
-	X         int     `json:"x"`
-	Y         int     `json:"y"`
-	Color     string  `json:"color"`
-	Trail     []Point `json:"trail"`
-	Alive     bool    `json:"alive"`
-	Score     int     `json:"score"`
-	Name      string  `json:"name"`
-	Length    int     `json:"length"`
-	MaxLength int     `json:"max_length"`
+	Id        string    `json:"id"`
+	X         int       `json:"x"`
+	Y         int       `json:"y"`
+	Direction Direction `json:"-"` // Don't send to client
+	Color     string    `json:"color"`
+	Trail     []Point   `json:"trail"`
+	Alive     bool      `json:"alive"`
+	Score     int       `json:"score"`
+	Name      string    `json:"name"`
+	Length    int       `json:"length"`
+	MaxLength int       `json:"max_length"`
 }
 
 type Point struct {
 	X int `json:"x"`
 	Y int `json:"y"`
 }
+
+type Direction string
+
+const (
+	DirectionUp    Direction = "up"
+	DirectionDown  Direction = "down"
+	DirectionLeft  Direction = "left"
+	DirectionRight Direction = "right"
+)
 
 func NewGameState() *GameState {
 	return &GameState{
@@ -35,6 +45,7 @@ func NewPlayer(id string, x, y int, color, name string) *Player {
 		Id:        id,
 		X:         x,
 		Y:         y,
+		Direction: DirectionRight, // Default direction
 		Color:     color,
 		Trail:     trail,
 		Alive:     true,
@@ -58,18 +69,60 @@ func (gs *GameState) RemovePlayer(playerID string) {
 	}
 }
 
-func (gs *GameState) UpdatePlayerPosition(playerID string, newX, newY int) {
+func (gs *GameState) UpdatePlayerPosition(playerID string, direction Direction) {
 	for i, p := range gs.Players {
 		if p.Id == playerID {
-			gs.Players[i].X = newX
-			gs.Players[i].Y = newY
-			// Add current position to trail
-			gs.Players[i].Trail = append(gs.Players[i].Trail, Point{X: newX, Y: newY})
-			// Trim trail if it exceeds MaxLength
-			if len(gs.Players[i].Trail) > gs.Players[i].Length {
-				gs.Players[i].Trail = gs.Players[i].Trail[1:]
+			switch direction {
+			case DirectionUp:
+				p.Y--
+			case DirectionDown:
+				p.Y++
+			case DirectionLeft:
+				p.X--
+			case DirectionRight:
+				p.X++
 			}
+			gs.Players[i] = p
 			return
+		}
+	}
+}
+
+func (gs *GameState) SetPlayerDirection(playerID string, direction Direction) {
+	for i := range gs.Players {
+		if gs.Players[i].Id == playerID {
+			gs.Players[i].Direction = direction
+			return
+		}
+	}
+}
+
+// UpdateAllPlayers moves all players based on their current direction
+func (gs *GameState) UpdateAllPlayers() {
+	for i := range gs.Players {
+		if !gs.Players[i].Alive {
+			continue
+		}
+
+		// Move player based on direction (grid-based, multiples of 5)
+		switch gs.Players[i].Direction {
+		case DirectionUp:
+			gs.Players[i].Y -= 5
+		case DirectionDown:
+			gs.Players[i].Y += 5
+		case DirectionLeft:
+			gs.Players[i].X -= 5
+		case DirectionRight:
+			gs.Players[i].X += 5
+		}
+
+		// Add current position to trail
+		newPoint := Point{X: gs.Players[i].X, Y: gs.Players[i].Y}
+		gs.Players[i].Trail = append(gs.Players[i].Trail, newPoint)
+
+		// Keep trail at max length
+		if len(gs.Players[i].Trail) > gs.Players[i].MaxLength {
+			gs.Players[i].Trail = gs.Players[i].Trail[1:]
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -45,6 +46,7 @@ func NewManager() *Manager {
 
 func (m *Manager) SetupEventHandlers() {
 	m.handlers[EventSendMessage] = SendMessage
+	m.handlers[EventPlayerInput] = HandlePlayerInput
 }
 
 func (m *Manager) AddClient(c *Client) {
@@ -61,7 +63,69 @@ func (m *Manager) RemoveClient(c *Client) {
 	if _, ok := m.clients[c]; ok {
 		c.connection.Close()
 		delete(m.clients, c)
+
+		// Remove player from game state
+		m.gameState.RemovePlayer(c.playerId)
 	}
+}
+
+// BroadcastGameState sends the game state to all connected clients
+func (m *Manager) BroadcastGameState() {
+	m.RLock()
+	gameStatePayload, err := json.Marshal(m.gameState)
+	m.RUnlock()
+
+	if err != nil {
+		log.Printf("error marshalling game state: %v", err)
+		return
+	}
+
+	event := Event{
+		Type:    EventGameUpdate,
+		Payload: gameStatePayload,
+	}
+
+	m.RLock()
+	for client := range m.clients {
+		select {
+		case client.egress <- event:
+		default:
+			// Client's egress channel is full, skip
+		}
+	}
+	m.RUnlock()
+}
+
+// StartGameLoop runs the game loop at 8 ticks per second (~125ms)
+func (m *Manager) StartGameLoop() {
+	ticker := time.NewTicker(125 * time.Millisecond)
+	defer ticker.Stop()
+
+	log.Println("Game loop started")
+
+	for range ticker.C {
+		m.Lock()
+		m.gameState.UpdateAllPlayers()
+		m.Unlock()
+
+		m.BroadcastGameState()
+	}
+}
+
+func HandlePlayerInput(event Event, c *Client) error {
+	var inputEvent PlayerInputEvent
+	if err := json.Unmarshal(event.Payload, &inputEvent); err != nil {
+		return fmt.Errorf("bad payload in request in player input: %v", err)
+	}
+
+	log.Printf("[handle player input] player: %s, direction: %s\n", c.playerId, inputEvent.Direction)
+
+	// Update the player's direction (movement happens in game loop)
+	c.manager.Lock()
+	c.manager.gameState.SetPlayerDirection(c.playerId, gamestate.Direction(inputEvent.Direction))
+	c.manager.Unlock()
+
+	return nil
 }
 
 func SendMessage(event Event, c *Client) error {

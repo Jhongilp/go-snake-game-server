@@ -17,6 +17,9 @@ func SetupAPI() {
 	// ctx := context.Background()
 	manager := NewManager()
 
+	// Start the game loop in a goroutine
+	go manager.StartGameLoop()
+
 	http.HandleFunc("/ws", manager.ServeWS)
 
 }

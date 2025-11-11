@@ -6,8 +6,9 @@ import (
 )
 
 type Event struct {
-	Type    string          `json:"type"`
-	Payload json.RawMessage `json:"payload"`
+	Type     string          `json:"type"`
+	Payload  json.RawMessage `json:"payload"`
+	PlayerId string          `json:"player_id"`
 }
 
 type EventHandler func(event Event, c *Client) error
@@ -16,6 +17,8 @@ const (
 	EventSendMessage = "send_message"
 	EventPlayerId    = "player_id"
 	EventGameState   = "game_state"
+	EventGameUpdate  = "game_update"
+	EventPlayerInput = "player_input"
 )
 
 type SendMessageEvent struct {
@@ -29,4 +32,8 @@ type PlayerIdEvent struct {
 
 type GameStateEvent struct {
 	players []gamestate.Player
+}
+
+type PlayerInputEvent struct {
+	Direction string `json:"direction"`
 }
