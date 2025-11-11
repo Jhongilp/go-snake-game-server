@@ -25,15 +25,17 @@ var (
 )
 
 type Manager struct {
-	clients ClientList
+	clients   ClientList
+	gameState *gamestate.GameState
 	sync.RWMutex
 	handlers map[string]EventHandler
 }
 
 func NewManager() *Manager {
 	m := &Manager{
-		clients:  make(ClientList),
-		handlers: make(map[string]EventHandler),
+		clients:   make(ClientList),
+		gameState: gamestate.NewGameState(),
+		handlers:  make(map[string]EventHandler),
 	}
 
 	m.SetupEventHandlers()
@@ -142,11 +144,12 @@ func (m *Manager) ServeWS(w http.ResponseWriter, r *http.Request) {
 	// create Player
 	player := gamestate.NewPlayer(playerId, 100, 100, "red", "Player 1")
 
-	// game state
-	gameState := gamestate.NewGameState()
-	gameState.AddPlayer(*player)
+	// Add player to the shared game state
+	m.Lock()
+	m.gameState.AddPlayer(*player)
+	m.Unlock()
 
-	gameStatePayload, err := json.Marshal(gameState)
+	gameStatePayload, err := json.Marshal(m.gameState)
 	if err != nil {
 		log.Printf("error marshalling game state: %v", err)
 		return
